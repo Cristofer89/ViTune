@@ -151,7 +151,7 @@ object Innertube {
         val explicit: Boolean,
         override val thumbnail: Thumbnail?
     ) : Item() {
-        override val key get() = info!!.endpoint!!.videoId!!
+        override val key get() = info?.endpoint?.videoId ?: ""
 
         companion object
     }
@@ -163,7 +163,7 @@ object Innertube {
         val durationText: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-        override val key get() = info!!.endpoint!!.videoId!!
+        override val key get() = info?.endpoint?.videoId ?: ""
 
         val isOfficialMusicVideo: Boolean
             get() = info
@@ -182,7 +182,7 @@ object Innertube {
         val year: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-        override val key get() = info!!.endpoint!!.browseId!!
+        override val key get() = info?.endpoint?.videoId ?: ""
 
         companion object
     }
@@ -193,7 +193,7 @@ object Innertube {
         val subscribersCountText: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-        override val key get() = info!!.endpoint!!.browseId!!
+        override val key get() = info?.endpoint?.videoId ?: ""
 
         companion object
     }
@@ -205,7 +205,7 @@ object Innertube {
         val songCount: Int?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-        override val key get() = info!!.endpoint!!.browseId!!
+        override val key get() = info?.endpoint?.videoId ?: ""
 
         companion object
     }
