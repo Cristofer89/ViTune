@@ -1426,11 +1426,13 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
                     }.mapCatching {
                         YouTubeDLResponse.fromString(it)
                     }.also { it.exceptionOrNull()?.printStackTrace() }.getOrNull()
-                    if (info?.id != mediaId) throw VideoIdMismatchException()
-                    val format = info.formats?.firstOrNull { it.formatId == info.formatId }
+                   if (info?.id != mediaId) throw VideoIdMismatchException()
 
-                    val uri =
-                        runCatching { info.url?.toUri() }.getOrNull() ?: throw UnplayableException()
+// Ripiego sicuro: usa l'URL da info, altrimenti prende il formato da Innertube
+val streamingUrl = info?.url ?: youtubeFormat?.url
+val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableException()
+
+                    
 
                     val mediaItem = runCatching {
                         runBlocking(Dispatchers.IO) { findMediaItem(mediaId) }
