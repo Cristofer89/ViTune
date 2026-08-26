@@ -36,15 +36,12 @@ internal val json = Json {
 
 object Innertube {
     private val OriginInterceptor = createClientPlugin("OriginInterceptor") {
-        client.sendPipeline.intercept(HttpSendPipeline.State) {
-            context.headers {
-                val host =
-                    if (context.host == "youtubei.googleapis.com") "www.youtube.com" else context.host
-                val origin = "${context.url.protocol.name}://$host"
-                set("host", host)
-                set("x-origin", origin)
-                set("origin", origin)
-            }
+        onRequest { request, _ ->
+            val host = if (request.host == "youtubei.googleapis.com") "www.youtube.com" else request.host
+            val origin = "${request.url.protocol.name}://$host"
+            request.headers.set("host", host)
+            request.headers.set("x-origin", origin)
+            request.headers.set("origin", origin)
         }
     }
 
