@@ -1461,13 +1461,11 @@ val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableE
         songId = mediaId,
         itag = info.formatId?.toIntOrNull(),
         mimeType = youtubeFormat?.mimeType,
-        bitrate = info.bitrate?.toLong() ?: youtubeFormat?.bitrate,
+        bitrate = info.abr?.let { (it * 1000).toLong() } ?: youtubeFormat?.bitrate,
         loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb,
         contentLength = info.fileSize,
         lastModified = youtubeFormat?.lastModified
-    )
-)
-                                )
+                                    )
                             )
                         }
                     }
