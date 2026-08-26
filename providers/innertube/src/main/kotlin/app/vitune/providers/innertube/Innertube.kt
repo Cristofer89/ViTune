@@ -16,7 +16,6 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.HttpSendPipeline
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.host
@@ -151,7 +150,8 @@ object Innertube {
         val explicit: Boolean,
         override val thumbnail: Thumbnail?
     ) : Item() {
-         get() = info?.endpoint?.videoId ?: ""
+        override val key: String
+            get() = info?.endpoint?.videoId ?: ""
 
         companion object
     }
@@ -163,7 +163,8 @@ object Innertube {
         val durationText: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-         get() = info?.endpoint?.videoId ?: ""
+        override val key: String
+            get() = info?.endpoint?.videoId ?: ""
 
         val isOfficialMusicVideo: Boolean
             get() = info
@@ -182,7 +183,8 @@ object Innertube {
         val year: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-         get() = info?.endpoint?.videoId ?: ""
+        override val key: String
+            get() = info?.endpoint?.browseId ?: ""
 
         companion object
     }
@@ -193,7 +195,8 @@ object Innertube {
         val subscribersCountText: String?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-         get() = info?.endpoint?.videoId ?: ""
+        override val key: String
+            get() = info?.endpoint?.browseId ?: ""
 
         companion object
     }
@@ -205,7 +208,8 @@ object Innertube {
         val songCount: Int?,
         override val thumbnail: Thumbnail?
     ) : Item() {
-         get() = info?.endpoint?.videoId ?: ""
+        override val key: String
+            get() = info?.endpoint?.browseId ?: ""
 
         companion object
     }
