@@ -337,7 +337,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         coroutineScope.launch {
             var first = true
             combine(mediaItemState, isLikedState) { mediaItem, _ ->
-                // work around NPE in other processes
                 if (first) {
                     first = false
                     return@combine
@@ -526,9 +525,9 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
 
-        if (
-            error.findCause<InvalidResponseCodeException>()?.responseCode == 416
-        ) {
+        val responseCode = error.findCause<InvalidResponseCodeException>()?.responseCode
+        // Gestisce la scadenza del token di streaming (HTTP 403 Forbidden o 416 Range Not Satisfiable)
+        if (responseCode == 403 || responseCode == 416) {
             player.pause()
             player.prepare()
             player.play()
@@ -718,7 +717,7 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         }
     }
 
-    @Suppress("CyclomaticComplexMethod") // TODO: evaluate CyclomaticComplexMethod threshold
+    @Suppress("CyclomaticComplexMethod")
     private fun maybeSponsorBlock() {
         poiTimestamp = null
 
@@ -772,7 +771,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
                                 segments.firstOrNull { posMillis() < it.end.inWholeMilliseconds }
                                     ?: continue
 
-                            // Wait for next segment
                             if (nextSegment.start.inWholeMilliseconds > posMillis()) {
                                 val timeNextSegment =
                                     nextSegment.start.inWholeMilliseconds - posMillis()
@@ -781,7 +779,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
                             }
 
                             if (posMillis().milliseconds !in nextSegment.start..nextSegment.end) {
-                                // Player is not in the segment for some reason, maybe the user seeked in the meantime
                                 yield()
                                 continue
                             }
@@ -926,7 +923,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             else -> PlaybackState.STATE_NONE
         }
 
-    // legacy behavior may cause inconsistencies, but not available on sdk 24 or lower
     @Suppress("DEPRECATION")
     override fun onEvents(player: Player, events: Player.Events) {
         if (player.duration != C.TIME_UNSET) {
@@ -1243,9 +1239,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             radio = null
         }
 
-        /**
-         * This method should ONLY be called when the application (sc. activity) is in the foreground!
-         */
         fun restartForegroundOrStop() {
             player.pause()
             isInvincibilityEnabled = false
@@ -1411,72 +1404,76 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             ) {
                 dataSpec
             } else {
-                uriCache[mediaId]?.let { cachedUri ->
-                    dataSpec
-                        .withUri(cachedUri.uri)
-                        .ranged(cachedUri.meta)
-                } ?: run {
-                    val body = runBlocking(Dispatchers.IO) {
-                        Innertube.player(PlayerBody(videoId = mediaId))
-                    }?.getOrNull()
-                    val youtubeFormat = body?.streamingData?.highestQualityFormat
+                runCatching {
+                    uriCache[mediaId]?.let { cachedUri ->
+                        dataSpec
+                            .withUri(cachedUri.uri)
+                            .ranged(cachedUri.meta)
+                    } ?: run {
+                        val body = runBlocking(Dispatchers.IO) {
+                            Innertube.player(PlayerBody(videoId = mediaId))
+                        }?.getOrNull()
+                        val youtubeFormat = body?.streamingData?.highestQualityFormat
 
-                    val info = runCatching {
-                        Dependencies.runDownload(mediaId)
-                    }.mapCatching {
-                        YouTubeDLResponse.fromString(it)
-                    }.also { it.exceptionOrNull()?.printStackTrace() }.getOrNull()
-                    if (info?.id != mediaId) throw VideoIdMismatchException()
+                        val info = runCatching {
+                            Dependencies.runDownload(mediaId)
+                        }.mapCatching {
+                            YouTubeDLResponse.fromString(it)
+                        }.also { it.exceptionOrNull()?.printStackTrace() }.getOrNull()
+                        if (info?.id != mediaId) throw VideoIdMismatchException()
 
-                    // Ripiego sicuro: usa l'URL da info, altrimenti prende il formato da Innertube
-                    val streamingUrl = info?.url ?: youtubeFormat?.url
-                    val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableException()
+                        val streamingUrl = info?.url ?: youtubeFormat?.url
+                        val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableException()
 
-                    val mediaItem = runCatching {
-                        runBlocking(Dispatchers.IO) { findMediaItem(mediaId) }
-                    }.getOrNull()
+                        val mediaItem = runCatching {
+                            runBlocking(Dispatchers.IO) { findMediaItem(mediaId) }
+                        }.getOrNull()
 
-                    val extras = mediaItem?.mediaMetadata?.extras?.songBundle
-                    if (extras?.durationText == null) {
-                        body
-                            ?.streamingData
-                            ?.highestQualityFormat
-                            ?.approxDurationMs
-                            ?.div(1000)
-                            ?.let(DateUtils::formatElapsedTime)
-                            ?.removePrefix("0")
-                            ?.let { durationText ->
-                                extras?.durationText = durationText
-                                Database.updateDurationText(mediaId, durationText)
-                            }
-                    }
-
-                    transaction {
-                        runCatching {
-                            mediaItem?.let(Database::insert)
-                            Database.insert(
-                                Format(
-                                    songId = mediaId,
-                                    itag = info.formatId?.toIntOrNull(),
-                                    mimeType = youtubeFormat?.mimeType,
-                                    bitrate = youtubeFormat?.bitrate,
-                                    contentLength = info.fileSize,
-                                    lastModified = youtubeFormat?.lastModified,
-                                    loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb
-                                )
-                            )
+                        val extras = mediaItem?.mediaMetadata?.extras?.songBundle
+                        if (extras?.durationText == null) {
+                            body
+                                ?.streamingData
+                                ?.highestQualityFormat
+                                ?.approxDurationMs
+                                ?.div(1000)
+                                ?.let(DateUtils::formatElapsedTime)
+                                ?.removePrefix("0")
+                                ?.let { durationText ->
+                                    extras?.durationText = durationText
+                                    Database.updateDurationText(mediaId, durationText)
+                                }
                         }
+
+                        transaction {
+                            runCatching {
+                                mediaItem?.let(Database::insert)
+                                Database.insert(
+                                    Format(
+                                        songId = mediaId,
+                                        itag = info.formatId?.toIntOrNull(),
+                                        mimeType = youtubeFormat?.mimeType,
+                                        bitrate = youtubeFormat?.bitrate,
+                                        contentLength = info.fileSize,
+                                        lastModified = youtubeFormat?.lastModified,
+                                        loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb
+                                    )
+                                )
+                            }
+                        }
+
+                        uriCache.push(
+                            key = mediaId,
+                            meta = info.fileSize,
+                            uri = uri
+                        )
+
+                        dataSpec
+                            .withUri(uri)
+                            .ranged(info.fileSize)
                     }
-
-                    uriCache.push(
-                        key = mediaId,
-                        meta = info.fileSize,
-                        uri = uri
-                    )
-
-                    dataSpec
-                        .withUri(uri)
-                        .ranged(info.fileSize)
+                }.getOrElse { error ->
+                    uriCache.clear()
+                    throw error
                 }
             }
         }.handleUnknownErrors {
