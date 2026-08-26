@@ -1426,13 +1426,11 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
                     }.mapCatching {
                         YouTubeDLResponse.fromString(it)
                     }.also { it.exceptionOrNull()?.printStackTrace() }.getOrNull()
-                   if (info?.id != mediaId) throw VideoIdMismatchException()
+                    if (info?.id != mediaId) throw VideoIdMismatchException()
 
-// Ripiego sicuro: usa l'URL da info, altrimenti prende il formato da Innertube
-val streamingUrl = info?.url ?: youtubeFormat?.url
-val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableException()
-
-                    
+                    // Ripiego sicuro: usa l'URL da info, altrimenti prende il formato da Innertube
+                    val streamingUrl = info?.url ?: youtubeFormat?.url
+                    val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableException()
 
                     val mediaItem = runCatching {
                         runBlocking(Dispatchers.IO) { findMediaItem(mediaId) }
@@ -1457,15 +1455,15 @@ val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableE
                         runCatching {
                             mediaItem?.let(Database::insert)
                             Database.insert(
-    Format(
-        songId = mediaId,
-        itag = info.formatId?.toIntOrNull(),
-        mimeType = youtubeFormat?.mimeType,
-        bitrate = info.abr?.let { (it * 1000).toLong() } ?: youtubeFormat?.bitrate,
-        loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb,
-        contentLength = info.fileSize,
-        lastModified = youtubeFormat?.lastModified
-                                    )
+                                Format(
+                                    songId = mediaId,
+                                    itag = info.formatId?.toIntOrNull(),
+                                    mimeType = youtubeFormat?.mimeType,
+                                    bitrate = youtubeFormat?.bitrate,
+                                    contentLength = info.fileSize,
+                                    lastModified = youtubeFormat?.lastModified,
+                                    loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb
+                                )
                             )
                         }
                     }
