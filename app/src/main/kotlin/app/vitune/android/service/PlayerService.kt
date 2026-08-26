@@ -1457,14 +1457,16 @@ val uri = runCatching { streamingUrl?.toUri() }.getOrNull() ?: throw UnplayableE
                         runCatching {
                             mediaItem?.let(Database::insert)
                             Database.insert(
-                                Format(
-                                    songId = mediaId,
-                                    itag = info.formatId?.toIntOrNull(),
-                                    mimeType = youtubeFormat?.mimeType,
-                                    bitrate = info.abr?.let { it * 1000 }?.toLong(),
-                                    loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb,
-                                    contentLength = info.fileSize,
-                                    lastModified = youtubeFormat?.lastModified
+    Format(
+        songId = mediaId,
+        itag = info.formatId?.toIntOrNull(),
+        mimeType = youtubeFormat?.mimeType,
+        bitrate = info.bitrate?.toLong() ?: youtubeFormat?.bitrate,
+        loudnessDb = body?.playerConfig?.audioConfig?.normalizedLoudnessDb,
+        contentLength = info.fileSize,
+        lastModified = youtubeFormat?.lastModified
+    )
+)
                                 )
                             )
                         }
